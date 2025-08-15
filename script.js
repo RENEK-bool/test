@@ -305,10 +305,30 @@
         // Initial sync
         updateActiveByScroll();
 
-        // Sidebar toggle
+        // Sidebar toggle (mobile)
         const sidebar = document.querySelector('.sidebar');
         const toggleBtn = document.querySelector('.sidebar-toggle');
-        if(toggleBtn && sidebar){ toggleBtn.addEventListener('click', ()=> sidebar.classList.toggle('open')); tocLinks.forEach(l=> l.addEventListener('click', ()=> sidebar.classList.remove('open'))); }
+        if(toggleBtn && sidebar){
+            if(!sidebar.id){ sidebar.id = 'sidebar'; }
+            toggleBtn.setAttribute('aria-haspopup','true');
+            toggleBtn.setAttribute('aria-controls', sidebar.id);
+            toggleBtn.setAttribute('aria-expanded','false');
+            const toggle = ()=>{
+                const opened = sidebar.classList.toggle('open');
+                document.body.classList.toggle('sidebar-open', opened);
+                toggleBtn.setAttribute('aria-expanded', opened ? 'true':'false');
+            };
+            toggleBtn.addEventListener('click', (e)=>{ e.stopPropagation(); toggle(); });
+            toggleBtn.addEventListener('keydown', (e)=>{ if(e.key==='Enter'|| e.key===' '){ e.preventDefault(); toggle(); }});
+            tocLinks.forEach(l=> l.addEventListener('click', ()=>{ sidebar.classList.remove('open'); document.body.classList.remove('sidebar-open'); toggleBtn.setAttribute('aria-expanded','false'); }));
+            // 点击页面空白关闭
+            document.addEventListener('click', (e)=>{
+                if(!sidebar.contains(e.target) && e.target!==toggleBtn){
+                    if(sidebar.classList.contains('open')){ sidebar.classList.remove('open'); document.body.classList.remove('sidebar-open'); toggleBtn.setAttribute('aria-expanded','false'); }
+                }
+            });
+        } else {
+            try { console.warn('[report] 未找到 sidebar 或 toggleBtn', {sidebar: !!sidebar, toggle: !!toggleBtn}); } catch {}
 
         // Add theme toggle button
         const themeBtn = document.createElement('button');
