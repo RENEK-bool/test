@@ -305,40 +305,63 @@
         // Initial sync
         updateActiveByScroll();
 
-        // Sidebar toggle - 改进版本，支持移动端
+        // Sidebar toggle with overlay support
         const sidebar = document.querySelector('.sidebar');
         const toggleBtn = document.querySelector('.sidebar-toggle');
         
-        if(toggleBtn && sidebar){
-            // 主要点击事件
+        // Create overlay for mobile
+        let overlay = null;
+        if (window.innerWidth <= 1024) {
+            overlay = document.createElement('div');
+            overlay.className = 'sidebar-overlay';
+            document.body.appendChild(overlay);
+        }
+        
+        function toggleSidebar() {
+            if (sidebar && toggleBtn) {
+                const isOpen = sidebar.classList.contains('open');
+                sidebar.classList.toggle('open');
+                if (overlay) {
+                    overlay.classList.toggle('show', !isOpen);
+                }
+            }
+        }
+        
+        function closeSidebar() {
+            if (sidebar) {
+                sidebar.classList.remove('open');
+                if (overlay) {
+                    overlay.classList.remove('show');
+                }
+            }
+        }
+        
+        if (toggleBtn && sidebar) { 
             toggleBtn.addEventListener('click', function(e){
                 e.preventDefault();
                 e.stopPropagation();
-                sidebar.classList.toggle('open');
-                console.log('Sidebar toggled:', sidebar.classList.contains('open'));
+                toggleSidebar();
+            }, { passive: false }); 
+            
+            // Close sidebar when clicking TOC links
+            tocLinks.forEach(function(l){ 
+                l.addEventListener('click', function(){
+                    setTimeout(closeSidebar, 100); // Small delay for smooth transition
+                }); 
             });
             
-            // 移动端触摸事件支持
-            toggleBtn.addEventListener('touchend', function(e){
-                e.preventDefault();
-                e.stopPropagation();
-                sidebar.classList.toggle('open');
-            });
-            
-            // 点击侧边栏外部区域关闭
-            document.addEventListener('click', function(e){
-                if(sidebar.classList.contains('open') && 
-                   !sidebar.contains(e.target) && 
-                   !toggleBtn.contains(e.target)){
-                    sidebar.classList.remove('open');
-                }
-            });
-            
-            // 点击TOC链接后关闭侧边栏
-            tocLinks.forEach(function(link){
-                link.addEventListener('click', function(){
-                    sidebar.classList.remove('open');
+            // Close sidebar when clicking overlay
+            if (overlay) {
+                overlay.addEventListener('click', function(){
+                    closeSidebar();
                 });
+            }
+            
+            // Close sidebar on escape key
+            document.addEventListener('keydown', function(e){
+                if (e.key === 'Escape') {
+                    closeSidebar();
+                }
             });
         }
 
@@ -349,7 +372,7 @@
         themeBtn.style.width='44px'; themeBtn.style.height='44px'; themeBtn.style.borderRadius='50%'; themeBtn.style.border='1px solid var(--border)';
         themeBtn.style.background='var(--surface)'; themeBtn.style.color='var(--text)'; themeBtn.style.boxShadow='0 10px 25px rgba(0,0,0,.35)';
         themeBtn.textContent = '🌓';
-        themeBtn.addEventListener('click', ()=>{
+        themeBtn.addEventListener('click', function(){
             const current = document.documentElement.getAttribute('data-theme') || 'light';
             const next = current === 'light' ? 'dark' : 'light';
             document.documentElement.setAttribute('data-theme', next);
