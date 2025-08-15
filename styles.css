@@ -658,9 +658,12 @@ figcaption { color: var(--muted); font-size: .92rem; margin-top: 8px; }
 .toc-item a{display:block;padding:10px 12px;margin:4px;border-radius:10px;color:#cbd5e1;text-decoration:none;font-size:14px;transition:background .15s ease,color .15s ease}
 .toc-item a:hover{background:rgba(255,255,255,.06);color:#fff}
 .toc-item a.active{background:linear-gradient(135deg,var(--accent-2) 0%,var(--accent) 100%);color:#fff}
-.sidebar-toggle{display:none;position:fixed;left:12px;bottom:16px;z-index:1000;width:48px;height:48px;border-radius:50%;border:1px solid var(--border);background:var(--surface);color:var(--text);box-shadow:0 10px 25px rgba(0,0,0,.35);cursor:pointer;font-size:18px;transition:all .2s ease}
+.sidebar-toggle{display:none;position:fixed;left:12px;bottom:16px;z-index:1000;width:48px;height:48px;border-radius:50%;border:1px solid var(--border);background:var(--surface);color:var(--text);box-shadow:0 10px 25px rgba(0,0,0,.35);cursor:pointer;font-size:18px;transition:all .2s ease;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;-moz-user-select:none}
 .sidebar-toggle:hover{transform:scale(1.05);box-shadow:0 12px 30px rgba(0,0,0,.4)}
 .sidebar-toggle:active{transform:scale(0.95)}
+/* 微信浏览器优化 */
+.sidebar-toggle:focus{outline:none}
+.sidebar-toggle::before{content:'☰';display:block;line-height:1;font-weight:bold}
 /* 移动端优化 */
 @media (max-width: 1024px){
     body{padding:10px}
@@ -673,6 +676,15 @@ figcaption { color: var(--muted); font-size: .92rem; margin-top: 8px; }
 }
 /* 触摸设备优化 */
 @media (hover: none) and (pointer: coarse) {
-    .toc-item a{padding:14px 12px;font-size:15px}
+    .toc-item a{padding:14px 12px;font-size:15px;-webkit-tap-highlight-color:transparent}
     .sidebar-toggle{width:52px;height:52px;font-size:20px}
+}
+/* 微信浏览器特殊优化 */
+.sidebar,.sidebar-toggle,.toc-item a{
+    -webkit-touch-callout:none;
+    -webkit-user-select:none;
+    -khtml-user-select:none;
+    -moz-user-select:none;
+    -ms-user-select:none;
+    user-select:none;
 }

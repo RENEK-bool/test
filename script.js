@@ -225,93 +225,163 @@
         });
 
 
-// ===== Enhanced Sidebar + Theme =====
+// ===== Enhanced Sidebar + Theme (WeChat Compatible) =====
 (function(){
-    document.addEventListener('DOMContentLoaded', function(){
+    // 兼容性检查和polyfill
+    function isWeChatBrowser() {
+        return /micromessenger/i.test(navigator.userAgent);
+    }
+    
+    // Array.from polyfill for older browsers
+    if (!Array.from) {
+        Array.from = function(arrayLike) {
+            var result = [];
+            for (var i = 0; i < arrayLike.length; i++) {
+                result.push(arrayLike[i]);
+            }
+            return result;
+        };
+    }
+    
+    function initApp() {
         // Apply saved theme or prefer scheme
         try {
-            const saved = localStorage.getItem('report-theme');
-            const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-            const theme = saved || (prefersDark ? 'dark' : 'light');
+            var saved = null;
+            try {
+                saved = localStorage.getItem('report-theme');
+            } catch (e) {
+                // localStorage may not be available in some environments
+            }
+            var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+            var theme = saved || (prefersDark ? 'dark' : 'light');
             document.documentElement.setAttribute('data-theme', theme);
-        } catch {}
+        } catch (e) {
+            // Fallback to light theme
+            document.documentElement.setAttribute('data-theme', 'light');
+        }
 
-        const tocLinks = Array.from(document.querySelectorAll('.toc-item a'));
-        const sections = tocLinks.map(a => document.getElementById(a.getAttribute('data-target'))).filter(Boolean);
-        function setActive(link){ tocLinks.forEach(l=>l.classList.remove('active')); if(link) link.classList.add('active'); }
+        var tocLinks = Array.from(document.querySelectorAll('.toc-item a'));
+        var sections = tocLinks.map(function(a) { 
+            return document.getElementById(a.getAttribute('data-target')); 
+        }).filter(function(el) { return el !== null; });
+        
+        function setActive(link) { 
+            tocLinks.forEach(function(l) { l.classList.remove('active'); }); 
+            if(link) link.classList.add('active'); 
+        }
 
-        // Click to scroll
-        tocLinks.forEach(link=>{
-            link.addEventListener('click', function(e){
-                e.preventDefault();
-                const id = this.getAttribute('data-target');
-                const el = document.getElementById(id);
-                if(!el) return;
-                const rect = el.getBoundingClientRect();
-                const absoluteY = (window.scrollY || window.pageYOffset) + rect.top - 12;
-                window.history.replaceState(null, '', '#' + id);
-                window.scrollTo({ top: absoluteY, behavior: 'smooth' });
-                setActive(this);
+        // Click to scroll - 微信兼容版本
+        tocLinks.forEach(function(link) {
+            // 使用多种事件来确保兼容性
+            var events = ['click', 'touchend'];
+            events.forEach(function(eventType) {
+                link.addEventListener(eventType, function(e){
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    var id = this.getAttribute('data-target');
+                    var el = document.getElementById(id);
+                    if(!el) return;
+                    
+                    var rect = el.getBoundingClientRect();
+                    var absoluteY = (window.scrollY || window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop) + rect.top - 12;
+                    
+                    // 更新URL hash
+                    try {
+                        window.history.replaceState(null, '', '#' + id);
+                    } catch (e) {
+                        // Fallback for environments where history API is not available
+                        window.location.hash = id;
+                    }
+                    
+                    // 滚动到目标位置 - 兼容多种方式
+                    if (window.scrollTo) {
+                        try {
+                            window.scrollTo({ top: absoluteY, behavior: 'smooth' });
+                        } catch (e) {
+                            // Fallback for browsers that don't support smooth scrolling
+                            window.scrollTo(0, absoluteY);
+                        }
+                    } else {
+                        document.documentElement.scrollTop = absoluteY;
+                        document.body.scrollTop = absoluteY;
+                    }
+                    
+                    setActive(this);
+                }, false);
             });
         });
 
         // IntersectionObserver (kept), plus scroll-based rAF highlight for robustness
         if(sections.length){
-            const observer = new IntersectionObserver((entries)=>{
-                let best=null;
-                for(const entry of entries){
-                    if(entry.isIntersecting){
-                        if(!best || entry.intersectionRatio>best.intersectionRatio) best=entry;
-                    }
+            // 检查 IntersectionObserver 支持
+            if (window.IntersectionObserver) {
+                try {
+                    var observer = new IntersectionObserver(function(entries) {
+                        var best = null;
+                        for(var i = 0; i < entries.length; i++) {
+                            var entry = entries[i];
+                            if(entry.isIntersecting){
+                                if(!best || entry.intersectionRatio > best.intersectionRatio) best = entry;
+                            }
+                        }
+                        if(best){
+                            var id = best.target.id;
+                            var activeLink = tocLinks.find(function(a) { return a.getAttribute('data-target') === id; });
+                            setActive(activeLink);
+                        }
+                    }, { root: null, rootMargin: '-30% 0px -55% 0px', threshold: [0.1, 0.25, 0.5, 0.75] });
+                    sections.forEach(function(sec) { observer.observe(sec); });
+                } catch (e) {
+                    // IntersectionObserver failed, fallback to scroll-based detection
                 }
-                if(best){
-                    const id = best.target.id;
-                    const activeLink = tocLinks.find(a=>a.getAttribute('data-target')===id);
-                    setActive(activeLink);
-                }
-            }, { root:null, rootMargin:'-30% 0px -55% 0px', threshold:[0.1,0.25,0.5,0.75] });
-            sections.forEach(sec=>observer.observe(sec));
+            }
         }
 
         // rAF-throttled scroll handler: pick the section nearest viewport center
-        let ticking = false;
+        var ticking = false;
         function updateActiveByScroll(){
             if(!sections.length) return;
-            const scrollY = window.scrollY || window.pageYOffset || 0;
-            const viewportCenter = scrollY + window.innerHeight * 0.38; // slightly above center feels better
-            let bestSec = null;
-            let bestDist = Infinity;
-            for(const sec of sections){
-                const rect = sec.getBoundingClientRect();
-                const secCenter = scrollY + rect.top + (rect.height || 0) / 2;
-                const visible = rect.bottom > 80 && rect.top < window.innerHeight * 0.85;
+            var scrollY = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+            var viewportCenter = scrollY + (window.innerHeight || document.documentElement.clientHeight) * 0.38;
+            var bestSec = null;
+            var bestDist = Infinity;
+            for(var i = 0; i < sections.length; i++) {
+                var sec = sections[i];
+                var rect = sec.getBoundingClientRect();
+                var secCenter = scrollY + rect.top + (rect.height || 0) / 2;
+                var visible = rect.bottom > 80 && rect.top < (window.innerHeight || document.documentElement.clientHeight) * 0.85;
                 if(!visible) continue;
-                const dist = Math.abs(secCenter - viewportCenter);
+                var dist = Math.abs(secCenter - viewportCenter);
                 if(dist < bestDist){ bestDist = dist; bestSec = sec; }
             }
             if(bestSec){
-                const id = bestSec.id;
-                const activeLink = tocLinks.find(a=>a.getAttribute('data-target')===id);
+                var id = bestSec.id;
+                var activeLink = tocLinks.find(function(a) { return a.getAttribute('data-target') === id; });
                 setActive(activeLink);
             }
         }
         function onScroll(){
             if(!ticking){
                 ticking = true;
-                requestAnimationFrame(()=>{ updateActiveByScroll(); ticking = false; });
+                if (window.requestAnimationFrame) {
+                    requestAnimationFrame(function() { updateActiveByScroll(); ticking = false; });
+                } else {
+                    setTimeout(function() { updateActiveByScroll(); ticking = false; }, 16);
+                }
             }
         }
-        window.addEventListener('scroll', onScroll, { passive: true });
+        window.addEventListener('scroll', onScroll, false);
         // Initial sync
         updateActiveByScroll();
 
-        // Sidebar toggle with overlay support
-        const sidebar = document.querySelector('.sidebar');
-        const toggleBtn = document.querySelector('.sidebar-toggle');
+        // Sidebar toggle with overlay support - 微信兼容版本
+        var sidebar = document.querySelector('.sidebar');
+        var toggleBtn = document.querySelector('.sidebar-toggle');
         
         // Create overlay for mobile
-        let overlay = null;
-        if (window.innerWidth <= 1024) {
+        var overlay = null;
+        if ((window.innerWidth || document.documentElement.clientWidth) <= 1024) {
             overlay = document.createElement('div');
             overlay.className = 'sidebar-overlay';
             document.body.appendChild(overlay);
@@ -319,10 +389,18 @@
         
         function toggleSidebar() {
             if (sidebar && toggleBtn) {
-                const isOpen = sidebar.classList.contains('open');
-                sidebar.classList.toggle('open');
+                var isOpen = sidebar.classList.contains('open');
+                if (isOpen) {
+                    sidebar.classList.remove('open');
+                } else {
+                    sidebar.classList.add('open');
+                }
                 if (overlay) {
-                    overlay.classList.toggle('show', !isOpen);
+                    if (isOpen) {
+                        overlay.classList.remove('show');
+                    } else {
+                        overlay.classList.add('show');
+                    }
                 }
             }
         }
@@ -337,17 +415,25 @@
         }
         
         if (toggleBtn && sidebar) { 
-            toggleBtn.addEventListener('click', function(e){
-                e.preventDefault();
-                e.stopPropagation();
-                toggleSidebar();
-            }, { passive: false }); 
+            // 为微信浏览器添加多种事件监听
+            var events = ['click', 'touchend'];
+            events.forEach(function(eventType) {
+                toggleBtn.addEventListener(eventType, function(e){
+                    e.preventDefault();
+                    e.stopPropagation();
+                    toggleSidebar();
+                }, false);
+            });
             
             // Close sidebar when clicking TOC links
             tocLinks.forEach(function(l){ 
                 l.addEventListener('click', function(){
                     setTimeout(closeSidebar, 100); // Small delay for smooth transition
                 }); 
+                // 为触摸设备添加touchend事件
+                l.addEventListener('touchend', function(){
+                    setTimeout(closeSidebar, 100);
+                });
             });
             
             // Close sidebar when clicking overlay
@@ -355,29 +441,59 @@
                 overlay.addEventListener('click', function(){
                     closeSidebar();
                 });
+                overlay.addEventListener('touchend', function(){
+                    closeSidebar();
+                });
             }
             
             // Close sidebar on escape key
             document.addEventListener('keydown', function(e){
-                if (e.key === 'Escape') {
+                if (e.key === 'Escape' || e.keyCode === 27) {
                     closeSidebar();
                 }
             });
         }
 
-        // Add theme toggle button
-        const themeBtn = document.createElement('button');
+        // Add theme toggle button - 微信兼容版本
+        var themeBtn = document.createElement('button');
         themeBtn.setAttribute('aria-label','切换主题');
-        themeBtn.style.position='fixed'; themeBtn.style.right='16px'; themeBtn.style.bottom='16px'; themeBtn.style.zIndex='1000';
-        themeBtn.style.width='44px'; themeBtn.style.height='44px'; themeBtn.style.borderRadius='50%'; themeBtn.style.border='1px solid var(--border)';
-        themeBtn.style.background='var(--surface)'; themeBtn.style.color='var(--text)'; themeBtn.style.boxShadow='0 10px 25px rgba(0,0,0,.35)';
+        themeBtn.style.position='fixed'; 
+        themeBtn.style.right='16px'; 
+        themeBtn.style.bottom='16px'; 
+        themeBtn.style.zIndex='1000';
+        themeBtn.style.width='44px'; 
+        themeBtn.style.height='44px'; 
+        themeBtn.style.borderRadius='50%'; 
+        themeBtn.style.border='1px solid var(--border)';
+        themeBtn.style.background='var(--surface)'; 
+        themeBtn.style.color='var(--text)'; 
+        themeBtn.style.boxShadow='0 10px 25px rgba(0,0,0,.35)';
+        themeBtn.style.cursor='pointer';
         themeBtn.textContent = '🌓';
-        themeBtn.addEventListener('click', function(){
-            const current = document.documentElement.getAttribute('data-theme') || 'light';
-            const next = current === 'light' ? 'dark' : 'light';
-            document.documentElement.setAttribute('data-theme', next);
-            try { localStorage.setItem('report-theme', next); } catch {}
+        
+        var themeEvents = ['click', 'touchend'];
+        themeEvents.forEach(function(eventType) {
+            themeBtn.addEventListener(eventType, function(e){
+                e.preventDefault();
+                e.stopPropagation();
+                var current = document.documentElement.getAttribute('data-theme') || 'light';
+                var next = current === 'light' ? 'dark' : 'light';
+                document.documentElement.setAttribute('data-theme', next);
+                try { 
+                    localStorage.setItem('report-theme', next); 
+                } catch (e) {
+                    // localStorage not available
+                }
+            }, false);
         });
         document.body.appendChild(themeBtn);
-    });
+    }
+    
+    // 兼容不同的DOM加载状态
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initApp);
+    } else {
+        // DOM already loaded
+        initApp();
+    }
 })();
